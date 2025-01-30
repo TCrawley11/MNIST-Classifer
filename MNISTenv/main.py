@@ -13,21 +13,22 @@ import matplotlib.pyplot as plt
 class Net(nn.Module):
     def __init__(self):
         super(Net, self).__init__()
-        self.conv1 = nn.Conv2d(1, 32, 3, 1)
-        self.conv2 = nn.Conv2d(32, 64, 3, 1)
-        self.dropout1 = nn.Dropout(0.25)
-        self.dropout2 = nn.Dropout(0.5)
-        self.fc1 = nn.Linear(9216, 128)
+        self.conv1 = nn.Conv2d(1, 32, 3, 1) # Convolutional layer with 1 input channel, 32 output channels, kernel size of 3x3 and stride of 1
+        self.conv2 = nn.Conv2d(32, 64, 3, 1) # Convolutional layer with 32 input channel from layer 1's output, 64 output channels, kernel size of 3x3 and stride of 1
+        self.dropout1 = nn.Dropout(0.25) # Drops 25 percent of neurons
+        self.dropout2 = nn.Dropout(0.5) # Drops 50 percent of neurons
+        self.fc1 = nn.Linear(9216, 128) 
         self.fc2 = nn.Linear(128, 10)
 
+    # Define the flow of our image data through the model 
     def forward(self, x):
         x = self.conv1(x)
         x = F.relu(x)
         x = self.conv2(x)
         x = F.relu(x)
-        x = F.max_pool2d(x, 2)
+        x = F.max_pool2d(x, 2) # Reduce size of image, i.e reduce by a factor of 2
         x = self.dropout1(x)
-        x = torch.flatten(x, 1)
+        x = torch.flatten(x, 1) # Reduce image data from multidimensional to 1D
         x = self.fc1(x)
         x = F.relu(x)
         x = self.dropout2(x)
@@ -39,12 +40,12 @@ class Net(nn.Module):
 def train(args, model, device, train_loader, optimizer, epoch, writer):
     model.train()
     for batch_idx, (data, target) in enumerate(train_loader):
-        data, target = data.to(device), target.to(device)
-        optimizer.zero_grad()
+        data, target = data.to(device), target.to(device) # Move images to defined device (mps, cuda, cpu)
+        optimizer.zero_grad() # PyTorch accumulates zeroes, reset gradient
         output = model(data)
-        loss = F.nll_loss(output, target)
-        loss.backward()
-        optimizer.step()
+        loss = F.cross_entropy(output, target) # Loss function
+        loss.backward() # Calculate gradients
+        optimizer.step() # Uses the loss function to update weights of our model to calculate loss
 
         # visualize to tensorBoard
         if writer:
@@ -59,14 +60,14 @@ def train(args, model, device, train_loader, optimizer, epoch, writer):
 
 
 def test(model, device, test_loader, writer):
-    model.eval()
+    model.eval() # Set model to evaluation mode, don't update weights while testing
     test_loss = 0
     correct = 0
-    with torch.no_grad():
+    with torch.no_grad(): # Disables gradient calculations to speed up testing
         for data, target in test_loader:
             data, target = data.to(device), target.to(device)
             output = model(data)
-            test_loss += F.nll_loss(output, target, reduction='sum').item()  # sum up batch loss
+            test_loss += F.cross_entropy(output, target)
             pred = output.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
             correct += pred.eq(target.view_as(pred)).sum().item()
 
@@ -86,6 +87,7 @@ def main():
     parser = argparse.ArgumentParser(description='PyTorch MNIST Example')
     # For visualizing on tensorboard
     writer = SummaryWriter()
+    
     parser.add_argument('--batch-size', type=int, default=64, metavar='N',
                         help='input batch size for training (default: 64)')
     parser.add_argument('--test-batch-size', type=int, default=1000, metavar='N',
@@ -115,10 +117,13 @@ def main():
     torch.manual_seed(args.seed)
 
     if use_cuda:
+        print('using cuda device')
         device = torch.device("cuda")
     elif use_mps:
+        print('using mps')
         device = torch.device("mps")
     else:
+        print('using cpu')
         device = torch.device("cpu")
 
     train_kwargs = {'batch_size': args.batch_size}
@@ -142,7 +147,7 @@ def main():
     test_loader = torch.utils.data.DataLoader(dataset2, **test_kwargs)
 
     model = Net().to(device)
-    optimizer = optim.Adadelta(model.parameters(), lr=args.lr)
+    optimizer = optim.Adam(model.parameters(), lr=args.lr)
 
     scheduler = StepLR(optimizer, step_size=1, gamma=args.gamma)
     for epoch in range(1, args.epochs + 1):
