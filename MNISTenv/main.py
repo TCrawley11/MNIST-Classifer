@@ -5,6 +5,9 @@ import torch.nn.functional as F
 import torch.optim as optim
 from torchvision import datasets, transforms
 from torch.optim.lr_scheduler import StepLR
+from torch.utils.tensorboard import SummaryWriter
+
+import matplotlib.pyplot as plt
 
 
 class Net(nn.Module):
@@ -33,7 +36,7 @@ class Net(nn.Module):
         return output
 
 
-def train(args, model, device, train_loader, optimizer, epoch):
+def train(args, model, device, train_loader, optimizer, epoch, writer):
     model.train()
     for batch_idx, (data, target) in enumerate(train_loader):
         data, target = data.to(device), target.to(device)
@@ -42,6 +45,11 @@ def train(args, model, device, train_loader, optimizer, epoch):
         loss = F.nll_loss(output, target)
         loss.backward()
         optimizer.step()
+
+        # visualize to tensorBoard
+        if writer:
+            writer.add_scalar('Loss/train', loss.item(), epoch * len(train_loader) + batch_idx)
+
         if batch_idx % args.log_interval == 0:
             print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
                 epoch, batch_idx * len(data), len(train_loader.dataset),
@@ -50,7 +58,7 @@ def train(args, model, device, train_loader, optimizer, epoch):
                 break
 
 
-def test(model, device, test_loader):
+def test(model, device, test_loader, writer):
     model.eval()
     test_loss = 0
     correct = 0
@@ -63,15 +71,21 @@ def test(model, device, test_loader):
             correct += pred.eq(target.view_as(pred)).sum().item()
 
     test_loss /= len(test_loader.dataset)
+    accuracy = correct / len(test_loader.dataset)
 
     print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
         test_loss, correct, len(test_loader.dataset),
         100. * correct / len(test_loader.dataset)))
 
+    if writer:
+        writer.add_scalar('Accuracy/test', accuracy, epoch)
+
 
 def main():
     # Training settings
     parser = argparse.ArgumentParser(description='PyTorch MNIST Example')
+    # For visualizing on tensorboard
+    writer = SummaryWriter()
     parser.add_argument('--batch-size', type=int, default=64, metavar='N',
                         help='input batch size for training (default: 64)')
     parser.add_argument('--test-batch-size', type=int, default=1000, metavar='N',
@@ -132,13 +146,23 @@ def main():
 
     scheduler = StepLR(optimizer, step_size=1, gamma=args.gamma)
     for epoch in range(1, args.epochs + 1):
-        train(args, model, device, train_loader, optimizer, epoch)
-        test(model, device, test_loader)
+        train(args, model, device, train_loader, optimizer, epoch, writer)
+        test(model, device, test_loader, writer)
         scheduler.step()
+    writer.close()
 
     if args.save_model:
         torch.save(model.state_dict(), "mnist_cnn.pt")
 
+def visualize_results(data, target, output, num_samples=8):
+    data, target = data.cpu(), target.cpu()
+    preds = output.argmax(dim=1)
+    fig, axes = plt.subplots(1, num_samples, figsize=(20, 2))
+    for i in range(num_samples):
+        axes[i].imshow(data[i].squeeze(), cmap='gray')
+        axes[i].set_title(f'Pred: {preds[i]}\nTrue: {target[i]}')
+        axes[i].axis('off')
+    plt.show()
 
 if __name__ == '__main__':
     main()
