@@ -130,11 +130,13 @@ celerybeat.pid
 # Environments
 .env
 .venv
+.venv/
 env/
 venv/
 ENV/
 env.bak/
 venv.bak/
+Scripts
 
 # Spyder project settings
 .spyderproject
@@ -174,4 +176,13 @@ cython_debug/
 .pypirc
 
 # datasets
-/data/MNIST/raw
+data
+data/
+data/MNIST
+data/MNIST/raw
+
+# matplotlib config
+jupyterlab-plotly.json
+
+#run history
+runs
